@@ -1,0 +1,101 @@
+# Dado el datafile csv separado por '^' que contiene informacion sobre aviones y sus características como los fabricantes y el número de motores entre otros datos.
+1.-Obtener el top 5 de fabricantes por número de aviones con 4 motores
+## Comandos unix
+### Version1: aislo primero la columna del fabricante y la de los motores, luego filtro y me quedo con la columna de los fabricantes. Ordenamos por nombre porque uniq solo cuenta consecutivos y usamos --count con unique para que nos de el total de repeticiones por cada fila unica. El resultado lo ordenamos con la opcion r para que sea descendente y extraemos solo las 5 primeras filas.
+opentraveldata % cat optd_aircraft.csv | cut -d '^' -f2,7 | grep "4" | cut -d '^' -f1 | sort -n | uniq --count | sort -nr | head -5
+     22 Boeing
+      9 Douglas
+      9 BAe
+      6 Ilyushin
+      6 Airbus
+
+## Version2: Filtramos primero todos los que tienen 4, esto podría dar un filtrado erroneo en el caso que alguna otra columna tenga valores numéricos y contenga un 4. Extraemos la columna de los fabricantes, ordenamos y contamos las repeticiones de los valores unicos, ordenamos de nuevo de manera descendente y extraemos las 5 primeras filas.
+opentraveldata % cat optd_aircraft.csv | grep "\^4\^" | cut -d '^' -f2 | sort -n | uniq --count | sort -nr | head -5
+     22 Boeing
+      9 Douglas
+      9 BAe
+      6 Ilyushin
+      6 Airbus
+## Usando csvkit
+### Version1: filtrado de aviones con 4 motores, seleccionamos columna manufacturer y vemos las estadísticas del resultado con csvstat
+opentraveldata % csvgrep -d '^' -c nb_engines -m 4 optd_aircraft.csv | csvcut -c manufacturer | csvstat                                     1. manufacturer
+        <type 'unicode'>
+        Nulls: False
+        Unique values: 11
+        5 most frequent values:
+                Boeing: 22
+                Douglas:        9
+                BAe:    9
+                Airbus: 6
+                Ilyushin:       6
+        Max length: 19
+
+Row count: 61
+
+1bis.- Top 5 fabricantes por numero de aviones
+## Unix
+opentraveldata % cat optd_aircraft.csv | cut -d '^' -f2 | sort -n | uniq --count | sort -nr | head -5                                     
+     93 Boeing
+     44 Airbus
+     28 Douglas
+     22 McDonnell Douglas
+     19 BAe
+# csvkit
+opentraveldata % csvcut -d '^' -c manufacturer optd_aircraft.csv | csvstat                                                                ~/Data/opentraveldata 0 20:30:09
+  1. manufacturer
+        <type 'unicode'>
+        Nulls: True
+        Unique values: 75
+        5 most frequent values:
+                Boeing: 93
+                Airbus: 44
+                Douglas:        28
+                McDonnell Douglas:      22
+                BAe:    19
+        Max length: 30
+
+Row count: 457
+
+
+2.- Encontrar el número de fabricantes con aviones de 4 motores usando csvkit
+## Version 1
+csvgrep -d '^' -c nb_engines -m 4 optd_aircraft.csv | csvcut -c manufacturer | tail -n+2 | sort | uniq | wc -l
+11
+## Version 2
+csvgrep -d '^' -c nb_engines -m 4 optd_aircraft.csv | csvcut -c manufacturer |  csvstat | grep -i "unique "              ~/Data/opentraveldata 0 20:58:58
+        Unique values: 11
+
+
+2.- Extra: script con argumento N que calcule el numero de fabricantes con N motores
+# Script
+opentraveldata % cat manufacturers_count.sh                                                                                               ~/Data/opentraveldata 0 21:07:34
+#!/bin/bash
+
+
+count_a=`csvgrep -d '^' -c nb_engines -m $1 optd_aircraft.csv | csvcut -c manufacturer | tail -n+2 | sort | uniq | wc -l`
+
+echo "$count_a fabricantes con $1 motores"
+
+exit
+
+# Ejecuciones
+dsc: opentraveldata % ./manufacturers_count.sh 4                                                                                               11 fabricantes con 4 motores
+dsc: opentraveldata % ./manufacturers_count.sh 2                                                                                               55 fabricantes con 2 motores
+
+3.- Con los ficheros de aerolíneas (el de optd y el fichero ref...), hacer un join. De las aerolíneas contenidas en el fichero ref, encontrar cuántas aerolíneas no tienen valores en el fichero de optd
+
+dsc: opentraveldata % csvjoin -d '^' -c airline_code_2c,2char_code --left ref_airline_nb_of_flights.csv optd_airlines.csv | csvcut -c airline_code_2c,flight_freq,flt_freq | csvgrep -c flt_freq -r '^.' | csvlook
+
+|------------------+-------------+-----------|
+|  airline_code_2c | flight_freq | flt_freq  |
+|------------------+-------------+-----------|
+|  9B              | 1467079     | 1467079   |
+|  AA              | 1146018     | 1146018   |
+|  DL              | 1070828     | 1070828   |
+|  WN              | 754539      | 754539    |
+|  UA              | 706085      | 706085    |
+|  CZ              | 652351      | 652351    |
+|  OO              | 638745      | 638745    |
+|  EV              | 619958      | 619958    |
+
+
